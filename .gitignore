@@ -1,16 +1,9 @@
 
 attic/
-
 benchmark/
-
 deps/
-
 *.o
-
 tau
-
 tau.cpp
-
 tau.hpp
-
 bfpp

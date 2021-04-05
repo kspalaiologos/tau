@@ -37,11 +37,11 @@ available colors:
 7 dark gray
 8 light gray
 9 light red
-a light green
-b light yellow
-c light blue
-d light purple
-e light aqua
+10 light green
+11 light yellow
+12 light blue
+13 light purple
+14 light aqua
 */
 
 $(

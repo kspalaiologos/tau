@@ -14,7 +14,7 @@ CXXFLAGS.release := -O3 -march=native -funroll-loops -flto -flto=auto
 CXXFLAGS.profile := $(CXXFLAGS.release) -g3
 CXXFLAGS := $(or ${CXXFLAGS.${target}},-Wall -Wextra -O0)
 
-_S_HIGHLIGHTERS := x86asm c cpp lua python
+_S_HIGHLIGHTERS := x86asm c cpp lua python brainfuck
 _S_HL_OBJS := $(patsubst %, highlighters/%.o, $(_S_HIGHLIGHTERS))
 _S_HL_A_OBJS := $(patsubst %, highlighters/%.ascii.o, $(_S_HIGHLIGHTERS))
 
