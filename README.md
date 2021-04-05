@@ -10,6 +10,12 @@ Tau is a fast syntax highlighter capable of emitting HTML. It highlights the fol
 
 This is alpha-grade software, which means it may or may not have obvious bugs. It may also scare you off by it's code quality, but all that is a subject to change.
 
+## Benchmarks
+
+Unicode mode: `0:01.51`s for Boost + a few highlighter sources; around 3'700'000 lines. ASCII mode: `0:00.75`s.
+Tau highlights (respectively) 2'000'000 lines of C++ code and ~4'900'000 lines of C++ code per second.
+Single thread performance - `648511.11` lines of x86 assembly per second (0.09s) on [this data](https://b.catgirlsare.sexy/kn4FQpJ2.txt).
+
 ## Building
 
 ```bash
