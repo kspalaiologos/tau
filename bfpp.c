@@ -1,3 +1,6 @@
+
+/* This file has been taken from https://github.com/kspalaiologos/asmbf - "the only true brainfuck-targetting assembler". */
+
 #ifdef __cplusplus
 extern "C" {
 #endif

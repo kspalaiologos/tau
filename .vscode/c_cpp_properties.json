@@ -4,8 +4,7 @@
             "name": "Linux",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/highlighters",
-                "${workspaceFolder}/boost_1_75_0"
+                "${workspaceFolder}/highlighters"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",
