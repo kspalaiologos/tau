@@ -1,0 +1,43 @@
+[syntax brainfuck]
+[top #define COLOR_GROUP1 2]
+[top #define COLOR_GROUP2 5]
+[top #define COLOR_GROUP3 4]
+[top #define COLOR_GROUP4 9]
+[top #define COLOR_COMMENT 8]
+[top #define COLOR_NONE 0]
+[reader wstr]
+[unicode 1]
+[literalprefix L]
+--  Tau - a reasonably fast syntax highlighter.
+--  Copyright (C) 2021 Kamila Szewczyk
+--
+--  This program is free software: you can redistribute it and/or modify
+--  it under the terms of the GNU Affero General Public License as published by
+--  the Free Software Foundation, either version 3 of the License, or
+--  (at your option) any later version.
+--
+--  This program is distributed in the hope that it will be useful,
+--  but WITHOUT ANY WARRANTY; without even the implied warranty of
+--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+--  GNU Affero General Public License for more details.
+--
+--  You should have received a copy of the GNU Affero General Public License
+--  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+[grammar]
+
+%x INCOMMENT
+
+%%
+
+<INCOMMENT>(\[(.|\n)*?\])|([^\[\]]+)     printer << COLOR_COMMENT << ${reader}();
+<INCOMMENT>\]                            printer << COLOR_COMMENT >> ${literalprefix}']'; start(INITIAL);
+
+"[-]["                                   printer << COLOR_COMMENT << ${reader}(); start(INCOMMENT); 
+[\+\-]+                                  printer << COLOR_GROUP1 << ${reader}();
+[><]+                                    printer << COLOR_GROUP2 << ${reader}();
+[\.\,]+                                  printer << COLOR_GROUP3 << ${reader}();
+[\[\]]+                                  printer << COLOR_GROUP4 << ${reader}();
+[ \t\r\n\f\v]                            printer >> ${reader}()[0];
+[^\+\-><\[\]\.\,]*                       printer << COLOR_COMMENT << ${reader}();
+
+%%

@@ -13,12 +13,14 @@ _all_highlighter(x86asm);
 _all_highlighter(cpp);
 _all_highlighter(lua);
 _all_highlighter(python);
+_all_highlighter(brainfuck);
 
 _all_highlighter_ascii(c);
 _all_highlighter_ascii(x86asm);
 _all_highlighter_ascii(cpp);
 _all_highlighter_ascii(lua);
 _all_highlighter_ascii(python);
+_all_highlighter_ascii(brainfuck);
 
 #undef _all_highlighter
 

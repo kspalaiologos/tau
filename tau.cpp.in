@@ -58,6 +58,7 @@ static bool is_lang(const std::string & shebang, const std::string & sig, const 
 #function choice(pred, o1, o2) if pred then return o1; else return o2; end; end
 
 #function make_highlighter(is_ascii)
+#   local function highlight_lang(name) return 'highlight_' .. name .. choice(is_ascii, "_a", "") .. '(in, output);'; end
 static void highlight(std::string ext, FILE * in, $(choice(is_ascii, "std::", "std::w"))ostream & out, bool iflag) {
     $(choice(is_ascii, "tau::ascii_printer output(out);", "std::locale locale(\"en_US.utf8\"); out.imbue(locale); tau::printer output(out);"))
     char shebang[64];
@@ -67,21 +68,24 @@ static void highlight(std::string ext, FILE * in, $(choice(is_ascii, "std::", "s
     
     if(shebang[0] == '#' && shebang[1] == '!') {
         std::string str(shebang + 2);
-        if(is_lang(str, "python")) { highlight_python$(choice(is_ascii, "_a", ""))(in, output); return; }
+        if(is_lang(str, "python")) { $(highlight_lang("python")) return; }
+        else if(is_lang(str, "tritium", "brainfuck", "/bf")) { $(highlight_lang("brainfuck")) return; }
     }
 
     for(auto & c : ext) c = std::tolower(c);
 
     if(ext == ".c")
-        highlight_c$(choice(is_ascii, "_a", ""))(in, output);
+        $(highlight_lang("c"))
     else if(ext == ".asm" || ext == ".x86")
-        highlight_x86asm$(choice(is_ascii, "_a", ""))(in, output);
+        $(highlight_lang("x86asm"))
     else if(ext == ".lua")
-        highlight_lua$(choice(is_ascii, "_a", ""))(in, output);
+        $(highlight_lang("lua"))
     else if(ext == ".py")
-        highlight_python$(choice(is_ascii, "_a", ""))(in, output);
+        $(highlight_lang("python"))
     else if(ext == ".cpp" || ext == ".hpp" || ext == ".cc" || ext == ".hh" || ext == ".hxx" || ext == ".cxx")
-        highlight_cpp$(choice(is_ascii, "_a", ""))(in, output);
+        $(highlight_lang("cpp"))
+    else if(ext == ".bf")
+        $(highlight_lang("brainfuck"))
     else if(!iflag) {
         std::cerr << ("`" + ext + "' - unrecognized file type.") << std::endl;
         std::exit(1);
