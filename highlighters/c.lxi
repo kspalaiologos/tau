@@ -1,0 +1,58 @@
+[syntax c]
+[top #define COLOR_KEY 2]
+[top #define COLOR_KEY_X 5]
+[top #define COLOR_META 4]
+[top #define COLOR_STR 9]
+[top #define COLOR_IMMEDIATE 11]
+[top #define COLOR_COMMENT 8]
+[top #define COLOR_FNS 14]
+[top #define COLOR_NONE 0]
+[top #define COLOR_OPER 12]
+[reader wstr]
+[viewkind wstring_view]
+[strkind wstring]
+[literalprefix L]
+[unicode 1]
+[identifier \p{UnicodeIdentifierStart}\p{UnicodeIdentifierPart}*]
+[grammar]
+
+O   [0-7]
+D   [0-9]
+NZ  [1-9]
+L   [a-zA-Z_]
+A   [a-zA-Z_0-9]
+H   [a-fA-F0-9]
+HP  (0[xX])
+E   ([Ee][+-]?{D}+)
+P   ([Pp][+-]?{D}+)
+FS  (f|F|l|L)
+IS  (((u|U)(l|L|ll|LL)?)|((l|L|ll|LL)(u|U)?))
+CP  (u|U|L)
+SP  (u8|u|U|L)
+
+%%
+
+"/*"(.|\n)*?"*/"              printer << COLOR_COMMENT << ${reader}();
+"//".*                        printer << COLOR_COMMENT << ${reader}();
+(auto|break|case|const|continue|default|do|else|enum|extern|for|goto|if|inline|register|restrict|return|short|sizeof|static|struct|switch|typedef|union|volatile|while|noreturn|static_assert|thread_local|alignof|alignas|asm|fortran|_Alignas|_Alignof|_Atomic|_Generic|_Noreturn|_Static_assert|_Thread_local)([ \t\r\f\n]*\()?        { if(${reader}().back() != L'(') printer << COLOR_KEY_X << ${reader}(); else {printer << COLOR_KEY_X << std::${viewkind}(${reader}()).substr(0, ${reader}().length() - 1) << std::${strkind}(${literalprefix}"(");} }
+(size_t|false|true|int_least8_t|uint_least8_t|int_least16_t|uint_least16_t|int_least32_t|uint_least32_t|int_least64_t|uint_least64_t|int_fast8_t|uint_fast8_t|int_fast16_t|uint_fast16_t|int_fast32_t|uint_fast32_t|int_fast64_t|uint_fast64_t|intptr_t|uintptr_t|intmax_t|uintmax_t|va_list|char|double|float|int|long|short|signed|unsigned|void|_Boolean|_Complex|_Decimal128|_Decimal32|_Decimal64|_Imaginary|bool|complex|imaginary|int8_t|uint8_t|int16_t|uint16_t|int32_t|uint32_t|int64_t|uint64_t|__m64|__m128|__m256|__m512)([ \t\r\n\f]*\()?       { if(${reader}().back() != L'(') printer << COLOR_KEY << ${reader}(); else {printer << COLOR_KEY << std::${viewkind}(${reader}()).substr(0, ${reader}().length() - 1) << std::${strkind}(${literalprefix}"(");} }
+\"([^\\\"]|\\.)*\"            printer << COLOR_STR >> ${reader}();
+L?'(\\.|[^\\'\n])+'            printer << COLOR_STR << ${reader}();
+"..."|(([\+\-\*\/\%\&\|\^]|"<<"|">>")?=)|"||"|"&&"|"=="|"!="|"<="|">="|"->"|"++"|"--"|[\+\-=\>\<\|\&\*\%\/\?\^\~\!]|"<<"|">>"       printer << COLOR_OPER << ${reader}();
+\#(.|\n)*?[^\\]\n       printer << COLOR_META << ${reader}();
+[ \t\r\f\n]+                  printer << COLOR_NONE << ${reader}();
+[A-Za-z_][A-Za-z0-9_]_t[ \t]+       printer << COLOR_KEY << ${reader}();
+[A-Za-z_][A-Za-z0-9_]*[ \t\r\f\n]*\(      { printer << COLOR_FNS << std::${viewkind}(${reader}()).substr(0, ${reader}().length() - 1) << std::${strkind}(${literalprefix}"("); }
+{HP}{H}+{IS}?				  printer << COLOR_IMMEDIATE << ${reader}();
+{NZ}{D}*{IS}?				  printer << COLOR_IMMEDIATE << ${reader}();
+"0"{O}*{IS}?				  printer << COLOR_IMMEDIATE << ${reader}();
+{D}+{E}{FS}?				  printer << COLOR_IMMEDIATE << ${reader}();
+{D}*"."{D}+{E}?{FS}?		  printer << COLOR_IMMEDIATE << ${reader}();
+{D}+"."{E}?{FS}?			  printer << COLOR_IMMEDIATE << ${reader}();
+{HP}{H}+{P}{FS}?			  printer << COLOR_IMMEDIATE << ${reader}();
+{HP}{H}*"."{H}+{P}{FS}?		  printer << COLOR_IMMEDIATE << ${reader}();
+{HP}{H}+"."{P}{FS}?			  printer << COLOR_IMMEDIATE << ${reader}();
+${identifier}        printer << ${reader}();
+.                             printer >> (${reader}()[0]);
+
+%%

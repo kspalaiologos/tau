@@ -1,0 +1,356 @@
+
+ #ifndef _TAU_HPP
+ #define _TAU_HPP
+
+ #include <iostream>
+ #include <optional>
+ #include <string_view>
+ #include <string>
+ #include <cstdint>
+
+/*
+available colors:
+1 dark red
+2 dark green
+3 dark yellow
+4 dark blue
+5 dark purple
+6 dark aqua
+7 dark gray
+8 light gray
+9 light red
+a light green
+b light yellow
+c light blue
+d light purple
+e light aqua
+*/
+
+$(
+local function starts_with(str, start)
+    return str:sub(1, #start) == start
+end
+
+local function ends_with(str, ending)
+    return ending == "" or str:sub(-#ending) == ending
+end
+
+function rdbuf_app(s, p)
+    local l = (loadstring("return #'" .. s .. "'"))()
+    return 'str.rdbuf()->sputn(' .. p .. '"' .. s .. '", ' .. l .. ');'
+end
+
+function emit_html_escape(var, suffix)
+    print(
+        "switch(" .. var .. ") {" .. 
+        "case '&': " .. rdbuf_app("&amp;", suffix) .. "break;" ..
+        "case '\"': " .. rdbuf_app("&quot;", suffix) .. "break;" ..
+        "case '\\\'': " .. rdbuf_app("&apos;", suffix) .. "break;" ..
+        "case '<': " .. rdbuf_app("&lt;", suffix) .. "break;" ..
+        "case '>': " .. rdbuf_app("&gt;", suffix) .. "break;" ..
+        "default: str.rdbuf()->sputc(" .. var .. ");}"
+    )
+end
+
+function emit_escape_fn(type, suffix)
+    print("void escape(const " .. type .. " c) {")
+    if ends_with(type, "&") then
+        print("for(const auto z : c)")
+        emit_html_escape("z", suffix)
+    else
+        emit_html_escape("c", suffix)
+    end
+    print("}")
+end
+
+function esc_xlat_consumer(kind)
+    return function(from, to)
+        print("case '" .. from .. "': " .. rdbuf_app(to, kind) .. " break;")
+    end
+end
+
+function esc_xlat(consumer)
+    local esc_xlat_t = {}
+
+    local function e(a)
+        esc_xlat_t[a] = a;
+    end
+
+    esc_xlat_t["\\'"] = "&apos;";
+    esc_xlat_t["\""] = "&quot;";
+    e("a"); e("b"); e("a"); e("f"); e("n"); e("r"); e("t");
+    e("v");
+
+    for k,v in pairs(esc_xlat_t) do
+        consumer(k,"<b>\\\\"..v.."</b>")
+    end
+end
+)
+
+#function writer_body(escaper, prefix)
+if(col && *col != 0) {
+    $(rdbuf_app("<span class=\\\"bg c", prefix))
+    switch(*col) {
+        $(for i=1, 14 do print("case " .. i .. ": str.rdbuf()->sputc(" .. prefix .. "'" .. string.format("%x", i) .. "'); break;"); end)
+    }
+    $(rdbuf_app("\\\">", prefix))
+    $(escaper)(c);
+    $(rdbuf_app("</span>", prefix))
+} else
+    $(escaper)(c);
+col.reset();
+#end
+
+namespace tau {
+    class printer {
+        private:
+            std::wostream & str;
+            std::optional<unsigned> col;
+
+            $(emit_escape_fn("std::wstring &", "L"))
+            $(emit_escape_fn("wchar_t", "L"))
+            $(emit_escape_fn("std::wstring_view &", "L"))
+
+            void escape_b(const std::wstring & c) {
+                for(std::wstring::size_type i = 0; i < c.length(); i++) {
+                    auto z = c[i];
+                    if(z == '\\' && i < c.length() - 1) {
+                        z = c[++i];
+                        switch(z) {
+                            $(esc_xlat(esc_xlat_consumer("L")))
+                            default:
+                                const auto is_octal = [](wchar_t c) {
+                                    return c >= '0' && c <= '7';
+                                };
+                                if(i < c.length() - 2) {
+                                    if(is_octal(z) && is_octal(c[i+1]) && is_octal(c[i+2])) {
+                                        $(rdbuf_app("<b>\\\\", "L"))
+                                        str.rdbuf()->sputc(z);str.rdbuf()->sputc(c[i+1]);str.rdbuf()->sputc(c[i+2]);
+                                        $(rdbuf_app("</b>", "L"))
+                                        i+=2;
+                                        break;
+                                    } else if(z == 'x' && std::isxdigit(c[i+1]) && std::isxdigit(c[i+2])) {
+                                        $(rdbuf_app("<b>\\\\x", "L"))
+                                        str.rdbuf()->sputc(c[i+1]);str.rdbuf()->sputc(c[i+2]);
+                                        $(rdbuf_app("</b>", "L"))
+                                        i+=2;
+                                        break;
+                                    }
+                                }
+                                if((z == L'u' || z == L'U') && i < c.length() - 4 && std::isxdigit(c[i+1]) && std::isxdigit(c[i+2])
+                                && std::isxdigit(c[i+3]) && std::isxdigit(c[i+4])) {
+                                    $(rdbuf_app("<b>\\\\", "L"))
+                                    str.rdbuf()->sputc(z);
+                                    $(for i = 1, 4 do print("str.rdbuf()->sputc(c[i+" .. i .. "]);"); end)
+                                    $(rdbuf_app("</b>", "L"))
+                                    i += 4;
+                                    break;
+                                } else if(i < c.length() - 1 && is_octal(z) && is_octal(c[i+1])) {
+                                    $(rdbuf_app("<b>\\\\", "L"))
+                                    str.rdbuf()->sputc(z);str.rdbuf()->sputc(c[i+1]);
+                                    $(rdbuf_app("</b>", "L"))
+                                    i++;
+                                    break;
+                                }
+                                str.rdbuf()->sputc(L'\\');
+                                str.rdbuf()->sputc(z);
+                        }
+                    } else $(emit_html_escape("z", "L"))
+                }
+            }
+
+            template <typename T>
+            void write(const T& c) {
+                $(writer_body("escape", "L"))
+            }
+
+            void write_b(const std::wstring & c) {
+                $(writer_body("escape_b", "L"))
+            }
+
+        public:
+            printer(std::wostream & str_v) : str(str_v) {
+                str <<
+                    L"<html>"
+                        L"<head>"
+                            L"<meta charset=\"UTF-8\">"
+                            L"<style>"
+                                L"body{margin:0;padding:0;}"
+                                L".cf{font-size:10pt;font-family:'Courier New',monospace;}"
+                                L".bg{background-color:#282828;}" // XXX: There may be a better way to do this.
+                                L".fg{color:#ebdbb2;}"            // because this is a proof of concept, I will
+                                L".c1{color:#cc241d;}"            // not ponder this for long.
+                                L".c2{color:#98971a;}"
+                                L".c3{color:#d79921;}"
+                                L".c4{color:#458588;}"
+                                L".c5{color:#b16286;}"
+                                L".c6{color:#689d6a;}"
+                                L".c7{color:#a89984;}"
+                                L".c8{color:#928374;}"
+                                L".c9{color:#fb4934;}"
+                                L".ca{color:#b8bb26;}"
+                                L".cb{color:#fabd2f;}"
+                                L".cc{color:#83a598;}"
+                                L".cd{color:#d3869b;}"
+                                L".ce{color:#8ec07c;}"
+                            L"</style>"
+                        L"</head>"
+                        L"<body>"
+                            L"<pre class=\"bg cf fg\">";
+            }
+
+            ~printer() {
+                str <<      L"</pre>"
+                        L"</body>"
+                    L"</html>\n";
+            }
+
+            printer& operator<<(unsigned int c) {
+                col.emplace(c);
+                return *this;
+            }
+
+            printer& operator<<(const std::wstring & c) {
+                write(c); return *this;
+            }
+
+            printer& operator>>(const wchar_t c) {
+                write(c); return *this;
+            }
+
+            printer& operator>>(const std::wstring & c) {
+                write_b(c); return *this;
+            }
+
+            printer& operator<<(const std::wstring_view & c) {
+                write(c); return *this;
+            }
+    };
+
+    class ascii_printer {
+        private:
+            std::ostream & str;
+            std::optional<unsigned> col;
+
+            $(emit_escape_fn("std::string &", ""))
+            $(emit_escape_fn("char", ""))
+            $(emit_escape_fn("std::string_view &", ""))
+
+            void escape_b(const std::string & c) {
+                for(std::string::size_type i = 0; i < c.length(); i++) {
+                    auto z = c[i];
+                    if(z == '\\' && i < c.length() - 1) {
+                        z = c[++i];
+                        switch(z) {
+                            $(esc_xlat(esc_xlat_consumer("")))
+                            default:
+                                const auto is_octal = [](char c) {
+                                    return c >= '0' && c <= '7';
+                                };
+                                if(i < c.length() - 2) {
+                                    if(is_octal(z) && is_octal(c[i+1]) && is_octal(c[i+2])) {
+                                        $(rdbuf_app("<b>\\\\", ""))
+                                        str.rdbuf()->sputc(z);str.rdbuf()->sputc(c[i+1]);str.rdbuf()->sputc(c[i+2]);
+                                        $(rdbuf_app("</b>", ""))
+                                        i+=2;
+                                        break;
+                                    } else if(z == 'x' && std::isxdigit(c[i+1]) && std::isxdigit(c[i+2])) {
+                                        $(rdbuf_app("<b>\\\\x", ""))
+                                        str.rdbuf()->sputc(c[i+1]);str.rdbuf()->sputc(c[i+2]);
+                                        $(rdbuf_app("</b>", ""))
+                                        i+=2;
+                                        break;
+                                    }
+                                }
+                                if((z == 'u' || z == 'U') && i < c.length() - 4 && std::isxdigit(c[i+1]) && std::isxdigit(c[i+2])
+                                && std::isxdigit(c[i+3]) && std::isxdigit(c[i+4])) {
+                                    $(rdbuf_app("<b>\\\\", ""))
+                                    str.rdbuf()->sputc(z);
+                                    $(for i = 1, 4 do print("str.rdbuf()->sputc(c[i+" .. i .. "]);"); end)
+                                    $(rdbuf_app("</b>", ""))
+                                    i += 4;
+                                    break;
+                                } else if(i < c.length() - 1 && is_octal(z) && is_octal(c[i+1])) {
+                                    $(rdbuf_app("<b>\\\\", ""))
+                                    str.rdbuf()->sputc(z);str.rdbuf()->sputc(c[i+1]);
+                                    $(rdbuf_app("</b>", ""))
+                                    i++;
+                                    break;
+                                }
+                                str.rdbuf()->sputc('\\');
+                                str.rdbuf()->sputc(z);
+                        }
+                    } else $(emit_html_escape("z", ""))
+                }
+            }
+
+            template <typename T>
+            void write(const T& c) {
+                $(writer_body("escape", ""))
+            }
+
+            void write_b(const std::string & c) {
+                $(writer_body("escape_b", ""))
+            }
+
+        public:
+            ascii_printer(std::ostream & str_v) : str(str_v) {
+                str <<
+                    "<html>"
+                        "<head>"
+                            "<meta charset=\"UTF-8\">"
+                            "<style>"
+                                "body{margin:0;padding:0;}"
+                                ".cf{font-size:10pt;font-family:'Courier New',monospace;}"
+                                ".bg{background-color:#282828;}" // XXX: There may be a better way to do this.
+                                ".fg{color:#ebdbb2;}"            // because this is a proof of concept, I will
+                                ".c1{color:#cc241d;}"            // not ponder this for long.
+                                ".c2{color:#98971a;}"
+                                ".c3{color:#d79921;}"
+                                ".c4{color:#458588;}"
+                                ".c5{color:#b16286;}"
+                                ".c6{color:#689d6a;}"
+                                ".c7{color:#a89984;}"
+                                ".c8{color:#928374;}"
+                                ".c9{color:#fb4934;}"
+                                ".ca{color:#b8bb26;}"
+                                ".cb{color:#fabd2f;}"
+                                ".cc{color:#83a598;}"
+                                ".cd{color:#d3869b;}"
+                                ".ce{color:#8ec07c;}"
+                            "</style>"
+                        "</head>"
+                        "<body>"
+                            "<pre class=\"bg cf fg\">";
+            }
+
+            ~ascii_printer() {
+                str <<      "</pre>"
+                        "</body>"
+                    "</html>\n";
+            }
+
+            ascii_printer& operator<<(unsigned int c) {
+                col.emplace(c);
+                return *this;
+            }
+
+            ascii_printer& operator<<(const std::string & c) {
+                write(c); return *this;
+            }
+
+            ascii_printer& operator>>(const char c) {
+                write(c); return *this;
+            }
+
+            ascii_printer& operator>>(const std::string & c) {
+                write_b(c); return *this;
+            }
+
+            ascii_printer& operator<<(const std::string_view & c) {
+                write(c); return *this;
+            }
+    };
+}
+
+ #endif

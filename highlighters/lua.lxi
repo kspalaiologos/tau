@@ -1,0 +1,53 @@
+[syntax lua]
+[top #define COLOR_KEY 2]
+[top #define COLOR_KEY_X 5]
+[top #define COLOR_META 4]
+[top #define COLOR_STR 9]
+[top #define COLOR_IMMEDIATE 11]
+[top #define COLOR_COMMENT 8]
+[top #define COLOR_FNS 14]
+[top #define COLOR_OPER 12]
+[top #define COLOR_NONE 0]
+[reader wstr]
+[viewkind wstring_view]
+[strkind wstring]
+[literalprefix L]
+[unicode 1]
+[grammar]
+
+ID     [a-zA-Z_][a-zA-Z_0-9]*
+n              [0-9]+
+exp            [Ee][+-]?{n}
+number         ({n}|{n}[.]{n}){exp}?
+
+%%
+
+"--[["(.|\n)*?"]]"            printer << COLOR_COMMENT << ${reader}();
+"--[=["(.|\n)*?"]=]"          printer << COLOR_COMMENT << ${reader}();
+"--[==["(.|\n)*?"]==]"        printer << COLOR_COMMENT << ${reader}();
+"--[===["(.|\n)*?"]===]"      printer << COLOR_COMMENT << ${reader}();
+"--".*$                       printer << COLOR_COMMENT << ${reader}();
+"[["(.|\n)*?"]]"              printer << COLOR_STR << ${reader}();
+"[=["(.|\n)*?"]=]"            printer << COLOR_STR << ${reader}();
+"[==["(.|\n)*?"]==]"          printer << COLOR_STR << ${reader}();
+"[===["(.|\n)*?"]===]"        printer << COLOR_STR << ${reader}();
+\"([^\\\"]|\\.)*\"            printer << COLOR_STR >> ${reader}();
+\'([^\\\']|\\.)*\'            printer << COLOR_STR >> ${reader}();
+"..."|[;=\[\]><]|([\~<>=]=)|".."|[\+\-\*\/\%\&\|\~\#\^]|"<<"|">>"             printer << COLOR_OPER << ${reader}();
+not|or|and|break|goto|do|end|while|repeat|until|if|then|elseif|else|for|in|function|local|return         printer << COLOR_KEY_X << ${reader}();
+nil|false|true                printer << COLOR_KEY << ${reader}();
+[a-zA-Z_][a-zA-Z_0-9\.\:]*    {
+    if (${reader}().find_first_of(${literalprefix}":.") != std::${strkind}::npos)
+        printer << COLOR_FNS << ${reader}();
+    else
+        printer << COLOR_NONE << ${reader}();
+}
+[a-zA-Z_][a-zA-Z_0-9\.\:]*[ \t]*\(    printer << COLOR_FNS << std::${viewkind}(${reader}()).substr(0, ${reader}().length() - 1) << std::${strkind}(${literalprefix}"(");
+"<"{ID}">"                      printer << COLOR_META << ${reader}();
+::{ID}::                      printer << COLOR_META << ${reader}();
+[ \t\r\n]+                    printer << COLOR_NONE << ${reader}();
+{number}                      printer << COLOR_IMMEDIATE << ${reader}();
+0[xX][0-9A-Fa-f]+             printer << COLOR_IMMEDIATE << ${reader}();
+.                             printer >> (${reader}()[0]);
+
+%%

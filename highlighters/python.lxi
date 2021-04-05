@@ -1,0 +1,48 @@
+[syntax python]
+[top #define COLOR_KEY 2]
+[top #define COLOR_KEY_X 5]
+[top #define COLOR_META 4]
+[top #define COLOR_STR 9]
+[top #define COLOR_IMMEDIATE 11]
+[top #define COLOR_COMMENT 8]
+[top #define COLOR_FNS 14]
+[top #define COLOR_OPER 12]
+[top #define COLOR_NONE 0]
+[reader wstr]
+[viewkind wstring_view]
+[strkind wstring]
+[literalprefix L]
+[idstart \p{UnicodeIdentifierStart}]
+[idpart \p{UnicodeIdentifierPart}]
+[unicode 1]
+[grammar]
+
+%%
+
+\#.*$                             printer << COLOR_COMMENT << ${reader}();
+[uUfFbB]?\"([^\\\"]|\\.)*\"       printer << COLOR_STR >> ${reader}();
+[uUfFbB]?\'([^\\\']|\\.)*\'       printer << COLOR_STR >> ${reader}();
+[rR][uUfFbB]?\"([^\\\"]|\\.)*\"   printer << COLOR_STR << ${reader}();
+[rR][uUfFbB]?\'([^\\\']|\\.)*\'   printer << COLOR_STR << ${reader}();
+[uUfFbB][rR]\"([^\\\"]|\\.)*\"    printer << COLOR_STR << ${reader}();
+[uUfFbB][rR]\'([^\\\']|\\.)*\'    printer << COLOR_STR << ${reader}();
+\'\'\'(.|\n)*?\'\'\'              printer << COLOR_STR << ${reader}();
+\"\"\"(.|\n)*?\"\"\"              printer << COLOR_STR << ${reader}();
+(0[bB][01_]+)|(0[oO][0-7_]+)      printer << COLOR_IMMEDIATE << ${reader}();
+(0[xX][0-9A-Fa-f_]+)|([0-9]+)     printer << COLOR_IMMEDIATE << ${reader}();
+[0-9_]+\.([0-9_]+)?([eE][\+\-][0-9_]+)?[jJ]?            printer << COLOR_IMMEDIATE << ${reader}();
+print                             printer << COLOR_FNS << ${reader}();
+from|yield|if|for|class|lambda|if|else|except|with|finally|try|while|elif|assert|nonlocal|global|as|import|from|raise|return|continue|break|pass|del|def   printer << COLOR_KEY_X << ${reader}();
+None|True|False               printer << COLOR_KEY << ${reader}();
+(\*\*?)|[:=\+\-\~\*\@\%\&\|\^><]|(\.\.\.)|(\/\/?)|">>"|"<<"|in|([=><\!\+\-\*\@\/\%\&\|\^]=)|"<>"|"not"|"is"|"and"|"or"|"as"|"->"|(("<<"|">>"|"**"|"//")=)           printer << COLOR_OPER << ${reader}();
+${idstart}[${idpart}\.]*    {
+    if (${reader}().find(${literalprefix}'.') != std::${strkind}::npos)
+        printer << COLOR_FNS << ${reader}();
+    else
+        printer << COLOR_NONE << ${reader}();
+}
+${idstart}[${idpart}\.]*[ \t]*\(    printer << COLOR_FNS << std::${viewkind}(${reader}()).substr(0, ${reader}().length() - 1) << std::${strkind}(${literalprefix}"(");
+[ \t\r\n]+                    printer << COLOR_NONE << ${reader}();
+.                             printer >> (${reader}()[0]);
+
+%%

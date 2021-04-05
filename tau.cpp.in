@@ -1,0 +1,180 @@
+
+// All the include files.
+ #include <string>
+ #include <iostream>
+ #include <fstream>
+ #include <queue>
+ #include <mutex>
+ #include <string>
+ #include <type_traits>
+ #include <cstdlib>
+ #include <cwctype>
+ #include <filesystem>
+ #include <tuple>
+ #include <thread>
+ #include "tau.hpp"
+ #include "highlighters/all.hpp"
+
+static void help() {
+    std::cerr << "tau: a reasonably fast syntax highlighter.\n"
+              << "copyright (c) kamila szewczyk, 2021, agplv3.\n"
+              << "usage:\n"
+              << " tau [--options] files..."
+              << "flags:\n"
+              << " -d dir   -  set the output directory.\n"
+              << " -s syn   -  override the syntax.\n"
+              << " -a       -  assume ASCII input (visible speedup).\n"
+              << " -i       -  ignore unknown languages.\n"
+              << " -j num   -  override the amount of worker threads.\n"
+              << std::endl;
+    std::exit(1);
+}
+
+static bool is_lang(const std::string & shebang, const std::string & sig) {
+    return shebang.find(sig) != std::string::npos; }
+
+template <typename... Sig>
+static bool is_lang(const std::string & shebang, const std::string & sig, const Sig& ... sigs) {
+    return shebang.find(sig) != std::string::npos ? true : is_lang(shebang, sigs...); }
+
+#function choice(pred, o1, o2) if pred then return o1; else return o2; end; end
+
+#function make_highlighter(is_ascii)
+static void highlight(std::string ext, FILE * in, $(choice(is_ascii, "std::", "std::w"))ostream & out, bool iflag) {
+    $(choice(is_ascii, "tau::ascii_printer output(out);", "std::locale locale(\"en_US.utf8\"); out.imbue(locale); tau::printer output(out);"))
+    char shebang[64];
+    fgets(shebang, 63, in);
+    shebang[63] = 0;
+    rewind(in);
+    
+    if(shebang[0] == '#' && shebang[1] == '!') {
+        std::string str(shebang + 2);
+        if(is_lang(str, "python")) { highlight_python$(choice(is_ascii, "_a", ""))(in, output); return; }
+    }
+
+    for(auto & c : ext) c = std::tolower(c);
+
+    if(ext == ".c")
+        highlight_c$(choice(is_ascii, "_a", ""))(in, output);
+    else if(ext == ".asm" || ext == ".x86")
+        highlight_x86asm$(choice(is_ascii, "_a", ""))(in, output);
+    else if(ext == ".lua")
+        highlight_lua$(choice(is_ascii, "_a", ""))(in, output);
+    else if(ext == ".py")
+        highlight_python$(choice(is_ascii, "_a", ""))(in, output);
+    else if(ext == ".cpp" || ext == ".hpp" || ext == ".cc" || ext == ".hh" || ext == ".hxx" || ext == ".cxx")
+        highlight_cpp$(choice(is_ascii, "_a", ""))(in, output);
+    else if(!iflag) {
+        std::cerr << ("`" + ext + "' - unrecognized file type.") << std::endl;
+        std::exit(1);
+    }
+}
+#end
+
+#make_highlighter(true)
+#make_highlighter(false)
+
+void process_files(std::queue<std::string> & files, std::mutex & mtx,
+        std::string & dflag, std::string & sflag, bool iflag, bool aflag) {
+    const bool sp = sflag != "";
+    mtx.lock();
+    while(!files.empty()) {
+        const std::string file(files.front());
+        files.pop();
+        mtx.unlock();
+
+        const std::string extension = sp ? sflag : std::string(std::filesystem::path(file).extension());
+        FILE * input = fopen(file.c_str(), "rb");
+
+        if(!input) {
+            std::cerr << ("unable to open " + file) << std::endl;
+            std::exit(1);
+        }
+
+        const std::string output = dflag + std::string(std::filesystem::path(file).filename()) + ".html";
+
+        if(aflag) {
+            std::ofstream out(output);
+            highlight(extension, input, out, iflag);
+        } else {
+            std::wofstream out(output);
+            highlight(extension, input, out, iflag);
+        }
+        mtx.lock();
+    }
+    
+    mtx.unlock();
+}
+
+int main(int argc, char * argv[]) {
+    std::ios_base::sync_with_stdio(false);
+    std::queue<std::string> files;
+    unsigned int no_files = 0; int jflag = 0;
+    std::string dflag = "", sflag;
+    bool iflag = false, aflag = false;
+
+    if(argc == 1)
+        help();
+    for(int i = 1; i <= argc - 1; i++) {
+        if(argv[i][0] == '-') {
+            if(argv[i][1] == 'i')
+                iflag = true;
+            else if(argv[i][1] == 'a')
+                aflag = true;
+            else if((argv[i][1] == 'd' || argv[i][1] == 's' || argv[i][1] == 'j') && i++ < argc)
+                if(argv[i-1][1] == 'd')
+                    dflag = std::string(argv[i]);
+                else if(argv[i-1][1] == 's')
+                    sflag = "." + std::string(argv[i]);
+                else
+                    jflag = std::stoi(argv[i]);
+            else
+                help();
+        } else {
+            // file / directory.
+            if(!std::filesystem::exists(argv[i])) {
+                std::cerr << '`' << argv[i] << "': file not found." << std::endl;
+                std::exit(1);
+            } else if(std::filesystem::is_directory(argv[i])) {
+                std::cerr << '`' << argv[i] << "' is a directory." << std::endl;
+                std::exit(1);
+            } else {
+                files.push(std::string(argv[i]));
+                no_files++;
+            }
+        }
+    }
+
+    if(files.empty())
+        return 0;
+    
+    if(dflag == "")
+        dflag = "./";
+    if(*(dflag.end() - 1) != std::filesystem::path::preferred_separator)
+        dflag += std::filesystem::path::preferred_separator;
+
+    std::mutex mtx;
+
+    if(no_files > 2) {
+        auto processor_count = jflag > 0 ? jflag : std::thread::hardware_concurrency();
+
+        // 0: unable to detect; assume dual-core.
+        if(processor_count == 0)
+            processor_count = 2;
+        
+        std::vector<std::thread> threads;
+        
+        for(unsigned i = 0; i < processor_count; i++) {
+            std::thread thread_object([&mtx, &files, iflag, aflag](std::string dflag, std::string sflag) {
+                process_files(files, mtx, dflag, sflag, iflag, aflag);
+            }, dflag, sflag);
+
+            threads.push_back(std::move(thread_object));
+        }
+
+        for(auto & thr : threads)
+            thr.join();
+    } else {
+        process_files(files, mtx, dflag, sflag, iflag, aflag);
+    }
+}
