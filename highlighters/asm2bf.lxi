@@ -61,7 +61,7 @@ number         ({n}|{n}[.]{n}){exp}?
 \"([^\\\"]|\\.)*\"            printer << COLOR_STR >> ${reader}();
 \'([^\\\']|\\.)*\'            printer << COLOR_STR >> ${reader}();
 \(                            paren_nesting++; printer >> ${literalprefix}'(';
-\)                            paren_nesting--; printer >> ${literalprefix}')'; if(paren_nesting == 0 && is_single == true) start(INITIAL);
+\)                            paren_nesting--; printer >> ${literalprefix}')'; if(paren_nesting == 0 && !is_single) start(INITIAL);
 "..."|[;=\[\]><]|([\~<>=]=)|".."|[\+\-\*\/\%\&\|\~\#\^]|"<<"|">>"             printer << COLOR_OPER << ${reader}();
 not|or|and|break|goto|do|end|while|repeat|until|if|then|elseif|else|for|in|function|local|return         printer << COLOR_KEY_X << ${reader}();
 nil|false|true                printer << COLOR_KEY << ${reader}();
