@@ -1,0 +1,102 @@
+[syntax asm2bf]
+[top #define COLOR_KEY 2]
+[top #define COLOR_KEY_X 5]
+[top #define COLOR_KEY_Y 13]
+[top #define COLOR_META 4]
+[top #define COLOR_STR 9]
+[top #define COLOR_IMMEDIATE 11]
+[top #define COLOR_COMMENT 8]
+[top #define COLOR_FNS 14]
+[top #define COLOR_STAY_AWAY 1]
+[top #define COLOR_OPER 12]
+[top #define COLOR_NONE 0]
+
+[reader wstr]
+[viewkind wstring_view]
+[strkind wstring]
+[literalprefix L]
+[unicode 1]
+--  Tau - a reasonably fast syntax highlighter.
+--  Copyright (C) 2021 Kamila Szewczyk
+--
+--  This program is free software: you can redistribute it and/or modify
+--  it under the terms of the GNU Affero General Public License as published by
+--  the Free Software Foundation, either version 3 of the License, or
+--  (at your option) any later version.
+--
+--  This program is distributed in the hope that it will be useful,
+--  but WITHOUT ANY WARRANTY; without even the implied warranty of
+--  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+--  GNU Affero General Public License for more details.
+--
+--  You should have received a copy of the GNU Affero General Public License
+--  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+-- A knob for Lua highlighter to indicate if we're in single-line mode.
+[data bool is_single = false;]
+-- Depth of paren nesting (required to find where $() will close).
+[data unsigned paren_nesting = 0;]
+
+[grammar]
+
+%x LUA
+
+ID     [a-zA-Z_][a-zA-Z_0-9]*
+n              [0-9]+
+exp            [Ee][+-]?{n}
+number         ({n}|{n}[.]{n}){exp}?
+
+%%
+
+<LUA> {
+"--[["(.|\n)*?"]]"            printer << COLOR_COMMENT << ${reader}();
+"--[=["(.|\n)*?"]=]"          printer << COLOR_COMMENT << ${reader}();
+"--[==["(.|\n)*?"]==]"        printer << COLOR_COMMENT << ${reader}();
+"--[===["(.|\n)*?"]===]"      printer << COLOR_COMMENT << ${reader}();
+"--".*$                       printer << COLOR_COMMENT << ${reader}();
+"[["(.|\n)*?"]]"              printer << COLOR_STR << ${reader}();
+"[=["(.|\n)*?"]=]"            printer << COLOR_STR << ${reader}();
+"[==["(.|\n)*?"]==]"          printer << COLOR_STR << ${reader}();
+"[===["(.|\n)*?"]===]"        printer << COLOR_STR << ${reader}();
+\"([^\\\"]|\\.)*\"            printer << COLOR_STR >> ${reader}();
+\'([^\\\']|\\.)*\'            printer << COLOR_STR >> ${reader}();
+\(                            paren_nesting++; printer >> ${literalprefix}'(';
+\)                            paren_nesting--; printer >> ${literalprefix}')'; if(paren_nesting == 0 && is_single == true) start(INITIAL);
+"..."|[;=\[\]><]|([\~<>=]=)|".."|[\+\-\*\/\%\&\|\~\#\^]|"<<"|">>"             printer << COLOR_OPER << ${reader}();
+not|or|and|break|goto|do|end|while|repeat|until|if|then|elseif|else|for|in|function|local|return         printer << COLOR_KEY_X << ${reader}();
+nil|false|true                printer << COLOR_KEY << ${reader}();
+[a-zA-Z_][a-zA-Z_0-9\.\:]*    {
+    if (${reader}().find_first_of(${literalprefix}":.") != std::${strkind}::npos)
+        printer << COLOR_FNS << ${reader}();
+    else
+        printer << COLOR_NONE << ${reader}();
+}
+[a-zA-Z_][a-zA-Z_0-9\.\:]*[ \t]*\(    printer << COLOR_FNS << std::${viewkind}(${reader}()).substr(0, ${reader}().length() - 1) << std::${strkind}(${literalprefix}"("); paren_nesting++;
+"<"{ID}">"                      printer << COLOR_META << ${reader}();
+::{ID}::                      printer << COLOR_META << ${reader}();
+\n                            printer << COLOR_NONE >> ${literalprefix}'\n'; if(is_single) start(INITIAL);
+[ \t\r]+                      printer << COLOR_NONE << ${reader}();
+{number}                      printer << COLOR_IMMEDIATE << ${reader}();
+0[xX][0-9A-Fa-f]+             printer << COLOR_IMMEDIATE << ${reader}();
+.                             printer >> (${reader}()[0]);
+}
+
+;.*$                          printer << COLOR_COMMENT << ${reader}();
+"$("                          printer >> ${literalprefix}"$("; paren_nesting = 1; is_single = false; start(LUA);
+^#                            printer >> ${literalprefix}'#'; is_single = true; start(LUA);
+\..                           printer << COLOR_IMMEDIATE << ${reader}();
+[0-9]+                        printer << COLOR_IMMEDIATE << ${reader}();
+r[1-6]|f[1-4]|[sS][pP]        printer << COLOR_FNS << ${reader}();
+\"([^\\\"]|\\.)*\"            printer << COLOR_STR << ${reader}();
+[\*\&][A-Za-z][0-9A-Za-z_]*   printer << COLOR_KEY << ${reader}();
+[\@\%][A-Za-z][0-9A-Za-z_]*   printer << COLOR_OPER << ${reader}();
+\?.*$                         printer << COLOR_META << ${reader}();
+raw|lbl|nav                   printer << COLOR_STAY_AWAY << ${reader}();
+cbs|cbe|cbegin|cend|jnz|jz|jz_|cjnz|cjn|cjz|ret|end|cflip|x04|jmp              printer << COLOR_OPER << ${reader}();
+vxcall|rse|seg|stk|org|db|txt|rcl|sto|movf|rcl|crcl|crc|sto|csto|cst|amp|smp|ots|cot|cots|cam|csm|camp|csmp                        printer << COLOR_KEY << ${reader}();
+pop|cpop|dp2|dup2|cpo|push|psh|cps|cpsh|cpush|srv|crv|csrv|finv|ret|fmul|fmu|fdiv|fdi|fadd|fad|fsub|fsu|dup|freduce|fre|sgt|spt|sle|tps|fcpush|fps|fcpsh|fcpop|fpo        printer << COLOR_KEY_X << ${reader}();
+pow|xgt|xle|xlt|axl|add|cadd|and|dec|div|cdi|cdiv|eq|eq_|ceq|ge|ge_|cge|gt|gt_|cgt|in|in_|cin|inc|le|le_|cle|lt|lt_|clt|mod|cmd|cmod|mov|lea|cmov|cmo|mul|cmu|cmul|ne|ne_|xor|neq|cne|neg|not|or|or_|out|cout|cou|sub|swp|xchg|cswp|csw|cxchg|clrf|band|bor|bxor|bneg|x00|x01|x02|x03|gcd|cgc|cgcd|par|cpa|cpar|candeq|candne|candle|candge|candlt|candgt|coreq|corne|corle|corge|corlt|cxoreq|cxorne|cxorle|cxorge|cxorgt|cxorlt|x0[5-9A-Fa-f]|x1[0-6]|shl|shr|sgmul|sgdiv|sgmod|sgsub|sgadd|sgn|abs|sneg|s0[012]             printer << COLOR_KEY_Y << ${reader}();
+[ \n\f\v\t\r]+                printer << COLOR_NONE << ${reader}();
+.                             printer >> (${reader}()[0]);
+
+%%

@@ -7,6 +7,8 @@ Tau is a fast syntax highlighter capable of emitting HTML. It highlights the fol
 * c
 * c++
 * x86 assembly
+* brainfuck
+* asm2bf
 
 This is alpha-grade software, which means it may or may not have obvious bugs. It may also scare you off by it's code quality, but all that is a subject to change.
 

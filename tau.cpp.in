@@ -86,6 +86,8 @@ static void highlight(std::string ext, FILE * in, $(choice(is_ascii, "std::", "s
         $(highlight_lang("cpp"))
     else if(ext == ".bf")
         $(highlight_lang("brainfuck"))
+    else if(ext == ".asm2bf")
+        $(highlight_lang("asm2bf"))
     else if(!iflag) {
         std::cerr << ("`" + ext + "' - unrecognized file type.") << std::endl;
         std::exit(1);
