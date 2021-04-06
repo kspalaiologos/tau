@@ -32,6 +32,8 @@ while(<>) {
                 $reading_grammar = 1; next;
             } elsif($1 eq 'top') {
                 $opt{'toplevel'} .= $2 . "\n";
+            } elsif($1 eq 'data') {
+                $opt{'instdata'} .= $2 . "\n";
             } else {
                 $2 eq "" ? ($opt{$1} = "") : ($opt{$1} = $2);
             }
@@ -40,6 +42,9 @@ while(<>) {
 
     $grammar .= $_ if($reading_grammar);
 }
+
+$opt{'instdata'} //= '';
+$opt{'unicode'} //= '';
 
 if($opt{'unicode'} eq '1') {
     $opt{'unicode'} = 'unicode';
@@ -82,6 +87,8 @@ class ${syntax}_highlight : public Lexer {
     public:
         using Lexer::process;
         int process(PRINTER_TYPE &);
+    private:
+        ${instdata}
 };
 %}
 
